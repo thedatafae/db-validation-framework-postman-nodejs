@@ -1,0 +1,604 @@
+{
+  "info": {
+    "_postman_id": "d6ad1faa-9eee-43d2-b007-86dad5cde0a4",
+    "name": "GitHub_DB_Automation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "52657583",
+    "_collection_link": "https://go.postman.co/collection/52657583-d6ad1faa-9eee-43d2-b007-86dad5cde0a4?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "01_Schema_Validation",
+      "item": [
+        {
+          "name": "Check User Table Structure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 1. Status Code Check (Bridge Stability)\r",
+                  "pm.test(\"Bridge Connection: Success\", function () {\r",
+                  "    pm.response.to.have.status(200);\r",
+                  "});\r",
+                  "\r",
+                  "var schema = pm.response.json();\r",
+                  "\r",
+                  "// 2. Column Existence & Type Check\r",
+                  "pm.test(\"Schema: Verify Columns and Data Types\", function () {\r",
+                  "    const expectedSchema = [\r",
+                  "        { Field: 'id', Type: 'int' },\r",
+                  "        { Field: 'username', Type: 'varchar(50)' },\r",
+                  "        { Field: 'email', Type: 'varchar(100)' },\r",
+                  "        { Field: 'status', Type: \"enum('active','inactive')\" },\r",
+                  "        { Field: 'created_at', Type: 'timestamp' }\r",
+                  "    ];\r",
+                  "\r",
+                  "    expectedSchema.forEach(expected => {\r",
+                  "        let actual = schema.find(col => col.Field === expected.Field);\r",
+                  "        pm.expect(actual, `Column ${expected.Field} is missing!`).to.not.be.undefined;\r",
+                  "        pm.expect(actual.Type).to.include(expected.Type);\r",
+                  "    });\r",
+                  "});\r",
+                  "\r",
+                  "// 3. Primary Key & Auto-Increment Validation\r",
+                  "pm.test(\"Schema: ID Column is Primary Key and Auto-Increments\", function () {\r",
+                  "    let idCol = schema.find(col => col.Field === 'id');\r",
+                  "    pm.expect(idCol.Key).to.eql('PRI');\r",
+                  "    pm.expect(idCol.Extra).to.include('auto_increment');\r",
+                  "});\r",
+                  "\r",
+                  "// 4. Nullability Check (Data Integrity)\r",
+                  "pm.test(\"Schema: Username and Email do not allow NULL\", function () {\r",
+                  "    let usernameCol = schema.find(col => col.Field === 'username');\r",
+                  "    let emailCol = schema.find(col => col.Field === 'email');\r",
+                  "    \r",
+                  "    pm.expect(usernameCol.Null).to.eql('NO');\r",
+                  "    pm.expect(emailCol.Null).to.eql('NO');\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"query\": \"DESCRIBE users\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02_Data_Mapping",
+      "item": [
+        {
+          "name": "Validate User Record",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 1. Basic Response Check\r",
+                  "pm.test(\"Status Code is 200\", function () {\r",
+                  "    pm.response.to.have.status(200);\r",
+                  "});\r",
+                  "\r",
+                  "var dbResults = pm.response.json();\r",
+                  "\r",
+                  "pm.test(\"Mapping: Record exists and fields are accurate\", function () {\r",
+                  "    // Check if result is an array and not empty\r",
+                  "    pm.expect(dbResults).to.be.an('array');\r",
+                  "    pm.expect(dbResults.length).to.be.at.least(1);\r",
+                  "\r",
+                  "    var user = dbResults[0];\r",
+                  "\r",
+                  "    // Data Mapping Assertions\r",
+                  "    pm.expect(user.username).to.eql(\"faizan_qa_lead\");\r",
+                  "    pm.expect(user.email).to.eql(\"faizan.test@gmail.com\");\r",
+                  "    pm.expect(user.status).to.eql(\"active\");\r",
+                  "    \r",
+                  "    // Verify System-Generated Fields\r",
+                  "    pm.expect(user.id).to.be.a('number');\r",
+                  "    pm.expect(user.created_at).to.not.be.null;\r",
+                  "    \r",
+                  "    console.log(`✅ Data Mapping Verified for ID: ${user.id}`);\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"query\": \"SELECT * FROM users WHERE username = 'faizan_qa_lead'\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Timestamp Logic (Freshness Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Mapping: Created_at timestamp is logical (Freshness check)\", function () {\r",
+                  "    var user = pm.response.json()[0];\r",
+                  "    var dbTime = new Date(user.created_at).getTime();\r",
+                  "    var currentTime = new Date().getTime();\r",
+                  "    \r",
+                  "    // Check if the record was created within the last 24 hours (86,400,000 ms)\r",
+                  "    var timeDifference = currentTime - dbTime;\r",
+                  "    \r",
+                  "    pm.expect(timeDifference).to.be.below(86400000); \r",
+                  "    console.log(\"✅ Timestamp Integrity: Record is fresh.\");\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"query\": \"SELECT * FROM users WHERE username = 'faizan_qa_lead'\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "It ensures the DB isn't just putting any date, but a date that is recent."
+          },
+          "response": []
+        },
+        {
+          "name": "Business Rule Validation: Email Formatting",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Mapping: Email follows Business Rule (Regex)\", function () {\r",
+                  "    var user = pm.response.json()[0];\r",
+                  "    \r",
+                  "    // Regex to ensure the email in the DB is actually a valid email format\r",
+                  "    var emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\r",
+                  "    \r",
+                  "    pm.expect(user.email).to.match(emailRegex);\r",
+                  "    pm.expect(user.email).to.include(\"@gmail.com\"); // Specific business requirement\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"query\": \"SELECT * FROM users WHERE username = 'faizan_qa_lead'\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "check if the DB has \"cleaned\" Email it or if it follows the required pattern."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03_CRUD_Persistence",
+      "item": [
+        {
+          "name": "1: Get Initial State (Pre-Check)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Capture Initial DB Count\", function () {\r",
+                  "    var jsonData = pm.response.json();\r",
+                  "    pm.environment.set(\"initial_count\", jsonData[0].total);\r",
+                  "    console.log(\"Initial Rows: \" + jsonData[0].total);\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\": \"SELECT COUNT(*) AS total FROM users\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "Get total rows."
+          },
+          "response": []
+        },
+        {
+          "name": "2: Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Persistence: Verify Row Insertion\", function () {\r",
+                  "    pm.response.to.have.status(200);\r",
+                  "    // Note: mysql2 returns 'affectedRows' for INSERTs\r",
+                  "    pm.expect(pm.response.json().affectedRows).to.eql(1);\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n\"query\": \"INSERT INTO users (username, email, status) VALUES ('persistence_test', 'persist@test.com', 'active')\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "Create a user."
+          },
+          "response": []
+        },
+        {
+          "name": "3: Verify Persistence (Post-Check)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Persistence: Total Count Increased\", function () {\r",
+                  "    var currentCount = pm.response.json()[0].total;\r",
+                  "    var initialCount = parseInt(pm.environment.get(\"initial_count\"));\r",
+                  "    \r",
+                  "    pm.expect(currentCount).to.eql(initialCount + 1);\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"query\": \"SELECT COUNT(*) AS total FROM users\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "Verify total rows = Before + 1."
+          },
+          "response": []
+        },
+        {
+          "name": "4: Update & State Verification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Persistence: State Transition Successful\", function () {\r",
+                  "    pm.expect(pm.response.json().changedRows).to.eql(1);\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n\"query\": \"UPDATE users SET status = 'inactive' WHERE username = 'persistence_test'\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "Change the status."
+          },
+          "response": []
+        },
+        {
+          "name": "5: The Delete / Cleanup",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Cleanup: Environment Reset Successful\", function () {\r",
+                  "    const response = pm.response.json();\r",
+                  "    \r",
+                  "    // We expect at least the row we just created to be deleted\r",
+                  "    pm.expect(response.affectedRows).to.be.at.least(1);\r",
+                  "    \r",
+                  "    console.log(`🧹 Cleanup complete. Deleted ${response.affectedRows} test records.`);\r",
+                  "});\r",
+                  "\r",
+                  "pm.test(\"Post-Condition: Row Count Restored\", function () {\r",
+                  "    // This is a great place to unset variables so the next run is fresh\r",
+                  "    pm.environment.unset(\"initial_count\");\r",
+                  "    pm.environment.unset(\"test_username\");\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"query\": \"DELETE FROM users WHERE id > 1 AND username LIKE '%test%'\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "We will target all users except the very first one  ID: 1 is our original setup) to prevent the collection from bloating the database."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04_Constraint_Security",
+      "item": [
+        {
+          "name": "1: Unique Constraint Violation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 1. We EXPECT a 500 error here because the DB is blocking a bad action\r",
+                  "pm.test(\"Security: DB correctly blocks duplicate username\", function () {\r",
+                  "    pm.response.to.have.status(500); \r",
+                  "});\r",
+                  "\r",
+                  "// 2. Parse the error message\r",
+                  "pm.test(\"Security: Error message confirms Unique Constraint violation\", function () {\r",
+                  "    var jsonData = pm.response.json();\r",
+                  "    \r",
+                  "    // Check if the error string contains the 'Duplicate entry' keyword\r",
+                  "    pm.expect(jsonData.error).to.include(\"Duplicate entry\");\r",
+                  "    pm.expect(jsonData.error).to.include(\"faizan_qa_lead\");\r",
+                  "    \r",
+                  "    console.log(\"🛡️ Database Guardrail Active: Duplicate prevented.\");\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"query\": \"INSERT INTO users (username, email) VALUES ('faizan_qa_lead', 'hacker@test.com')\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "try to \"break\" the system by inserting a username that already exists in our permanent record (id: 1)."
+          },
+          "response": []
+        },
+        {
+          "name": "2: Null Constraint Violation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// 1. Verify the DB Engine blocked the transaction\r",
+                  "pm.test(\"Security: DB rejects record with missing mandatory email\", function () {\r",
+                  "    pm.response.to.have.status(500); \r",
+                  "});\r",
+                  "\r",
+                  "// 2. Validate the specific Error Message\r",
+                  "pm.test(\"Security: Error message confirms NULL constraint violation\", function () {\r",
+                  "    var jsonData = pm.response.json();\r",
+                  "    \r",
+                  "    // This confirms the 'NOT NULL' constraint on the 'email' column is working\r",
+                  "    pm.expect(jsonData.error).to.include(\"Field 'email' doesn't have a default value\");\r",
+                  "    \r",
+                  "    console.log(\"🛡️ Integrity Guardrail Active: Null record blocked.\");\r",
+                  "});"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"query\": \"INSERT INTO users (username) VALUES ('no_email_user')\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{bridge_url}}/query",
+              "host": [
+                "{{bridge_url}}"
+              ],
+              "path": [
+                "query"
+              ]
+            },
+            "description": "Trying to insert a row without an email (which we set as NOT NULL)."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
